@@ -1,0 +1,130 @@
+heat_template_version: 2013-05-23
+
+description: |
+  Multiple Linux servers running [SaltStack](http://www.saltstack.com/).
+  This deployment has a single Salt Master with multiple Minions. All minions
+  will be configured to point to the Salt Master. Includes dependencies for
+  Salt Cloud and the GitFS backend.
+
+  This template will only work with RackConnect v3
+parameter_groups:
+
+- label: Salt Master Settings
+  parameters:
+  - image
+  - master_flavor
+- label: RackConnect Settings
+  parameters:
+  - rc_network_name
+parameters:
+
+  # Server settings
+  image:
+    label: Operating System
+    description: |
+      Server image used for all servers that are created as a part of this
+      deployment.
+    type: string
+    default: Ubuntu 14.04 LTS (Trusty Tahr) (PV)
+    constraints:
+    - allowed_values:
+      - Ubuntu 14.04 LTS (Trusty Tahr) (PV)
+      description: Must be a supported operating system.
+
+  master_flavor:
+    label: Server Size
+    description: |
+      Rackspace Cloud Server flavor to use. The size is based on the amount of
+      RAM for the provisioned server.
+    type: string
+    default: 2 GB General Purpose v1
+    constraints:
+    - allowed_values:
+      - 1 GB General Purpose v1
+      - 2 GB General Purpose v1
+      - 4 GB General Purpose v1
+      - 8 GB General Purpose v1
+      - 15 GB I/O v1
+      - 30 GB I/O v1
+      - 1GB Standard Instance
+      - 2GB Standard Instance
+      - 4GB Standard Instance
+      - 8GB Standard Instance
+      - 15GB Standard Instance
+      - 30GB Standard Instance
+      description: |
+        Must be a valid Rackspace Cloud Server flavor for the region you have
+        selected to deploy into.
+  rc_network_name:
+    type: string
+    label: RackConnect Network
+    description: Name or UUID of RackConnected network to attach this server to
+    constraints:
+    - custom_constraint: rackconnect.network
+    immutable: true
+resources:
+
+  wait_condition:
+    type: OS::Heat::SwiftSignal
+    properties:
+      handle: { get_resource: wait_condition_handle }
+      timeout: 1800
+
+  wait_condition_handle:
+    type: OS::Heat::SwiftSignalHandle
+
+  # SSH Key
+  ssh_key:
+    type: "OS::Nova::KeyPair"
+    properties:
+      name: { get_param: "OS::stack_id" }
+      save_private_key: true
+
+  # Server resources
+  salt_master_server:
+    type: "OS::Nova::Server"
+    properties:
+      name: salt-master
+      flavor: { get_param: master_flavor }
+      image: { get_param: image }
+      key_name: { get_resource: ssh_key }
+      networks:
+      - network: { get_param: rc_network_name }
+      - network: 11111111-1111-1111-1111-111111111111
+      metadata:
+        rax-heat: { get_param: "OS::stack_id" }
+      config_drive: "true"
+      user_data_format: RAW
+      user_data:
+        str_replace:
+          template: |
+            #cloud-config
+            apt_sources:
+              - source: "ppa:saltstack/salt"
+            package_update: true
+            packages:
+              - salt-master
+              - salt-cloud
+            write_files:
+              - path: /tmp/heat/swiftsignal.sh
+                permissions: '0500'
+                content: |
+                  #!/bin/bash
+                  wc_notify --data-binary '{"status": "SUCCESS"}'
+            runcmd:
+              - /tmp/heat/swiftsignal.sh
+          params:
+            wc_notify: { get_attr: ['wait_condition_handle', 'curl_cli'] }
+  salt_master_server_public_ip:
+    type: Rackspace::RackConnect::PublicIP
+    depends_on: salt_master_server
+    properties:
+      server_id: { get_resource: salt_master_server }
+outputs:
+  private_key:
+    description: SSH Private Key
+    value: { get_attr: [ssh_key, private_key] }
+
+  salt_master_ip:
+    description: Salt Master IP
+    value: { get_attr: [salt_master_server, accessIPv4] }
