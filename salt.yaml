@@ -1,6 +1,7 @@
 heat_template_version: 2013-05-23
 
 description: |
+  ####Single Linux server - RCv3
   Multiple Linux servers running [SaltStack](http://www.saltstack.com/).
   This deployment has a single Salt Master with multiple Minions. All minions
   will be configured to point to the Salt Master. Includes dependencies for

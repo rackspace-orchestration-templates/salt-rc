@@ -86,6 +86,7 @@ instructions: |
   example for configuring Salt Cloud with Rackspace can be found
   [here](http://docs.saltstack.com/en/latest/topics/cloud/config.html#rackspace).
 description: |
+  ####Single Linux server - RCv3
   Multiple Linux servers running [SaltStack](http://www.saltstack.com/).
   This deployment has a single Salt Master with multiple Minions. All minions
   will be configured to point to the Salt Master. Includes dependencies for
